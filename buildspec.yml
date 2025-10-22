@@ -1,0 +1,10 @@
+﻿version: 0.2
+phases:
+  build:
+    commands:
+      - mkdir -p package
+      - cp -r src/* package/
+      - cd package && zip -r ../function.zip . && cd -
+artifacts:
+  files:
+    - function.zip
