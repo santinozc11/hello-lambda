@@ -3,10 +3,12 @@
 phases:
   build:
     commands:
-      - echo "Empaquetando Lambda…"
-      # Crea function.zip con index.js en la raíz (-j elimina la carpeta 'src')
-      - zip -j function.zip src/index.js
+      - echo "Preparando paquete para Lambda…"
+      - rm -rf dist
+      - mkdir -p dist
+      - cp src/index.js dist/index.js
 
 artifacts:
+  base-directory: dist
   files:
-    - function.zip
+    - '**/*'
