@@ -3,9 +3,10 @@
 phases:
   build:
     commands:
-      - echo "Subiendo código a AWS"
-      - echo "Fin de la implementación"
+      - echo "Empaquetando Lambda…"
+      # Crea function.zip con index.js en la raíz (-j elimina la carpeta 'src')
+      - zip -j function.zip src/index.js
 
 artifacts:
   files:
-    - src/index.js
+    - function.zip
