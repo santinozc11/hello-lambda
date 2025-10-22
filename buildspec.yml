@@ -8,4 +8,4 @@ phases:
 
 artifacts:
   files:
-    -src/index.js
+    - src/index.js
