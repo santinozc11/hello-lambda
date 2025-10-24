@@ -1,0 +1,70 @@
+name: Upload to S3 via OIDC
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# Permisos mínimos para OIDC y lectura del repo
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  upload:
+    name: Build metadata and upload to S3
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Evidence - who am I?
+        run: aws sts get-caller-identity
+
+      - name: Build output JSON (with secret and metadata)
+        shell: bash
+        env:
+          APP_SECRET: ${{ secrets.APP_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          TS="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          FILE="out/out-${GITHUB_RUN_ID}.json"
+
+          # Creamos el JSON sin imprimir el secret en logs
+          python3 - "$FILE" "$TS" "$APP_SECRET" <<'PY'
+          import json, os, sys
+          file, ts, secret = sys.argv[1], sys.argv[2], sys.argv[3]
+          data = {
+            "timestamp": ts,
+            "workflow": os.environ.get("GITHUB_WORKFLOW"),
+            "run_id": os.environ.get("GITHUB_RUN_ID"),
+            "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+            "repository": os.environ.get("GITHUB_REPOSITORY"),
+            "ref": os.environ.get("GITHUB_REF"),
+            "actor": os.environ.get("GITHUB_ACTOR"),
+            "secret_sample": secret
+          }
+          with open(file, "w") as f:
+              json.dump(data, f, indent=2)
+          PY
+
+      - name: Upload file to S3
+        run: |
+          KEY="${{ vars.S3_PREFIX }}out-${GITHUB_RUN_ID}.json"
+          aws s3 cp "out/out-${GITHUB_RUN_ID}.json" "s3://${{ vars.S3_BUCKET }}/${KEY}"
+          echo "Uploaded to s3://${{ vars.S3_BUCKET }}/${KEY}"
+
+      - name: Verify object in S3
+        run: |
+          KEY="${{ vars.S3_PREFIX }}out-${GITHUB_RUN_ID}.json"
+          aws s3api head-object --bucket "${{ vars.S3_BUCKET }}" --key "$KEY"
+          echo "Object exists."
